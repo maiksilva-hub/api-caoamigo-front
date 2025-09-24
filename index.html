@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cão Amigo 🐶</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Cão Amigo 🐕</h1>
+    <nav>
+      <button onclick="showPage('home')">🏠 Início</button>
+      <button onclick="showPage('explorer')">⚙️ Explorer</button>
+      <button onclick="showPage('cadastro')">➕ Cadastrar Cão</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Página Inicial -->
+    <section id="home" class="page active">
+      <h2>Cães disponíveis para adoção</h2>
+      <div id="dogList" class="grid"></div>
+    </section>
+
+    <!-- Detalhes do Cão -->
+    <section id="detalhes" class="page">
+      <button onclick="showPage('home')">⬅️ Voltar</button>
+      <div id="dogDetails"></div>
+    </section>
+
+    <!-- Cadastro de Cão -->
+    <section id="cadastro" class="page">
+      <h2>Cadastrar novo cão</h2>
+      <form id="dogForm">
+        <input type="text" name="nome" placeholder="Nome do cão" required>
+        <input type="number" name="idade" placeholder="Idade" required>
+        <input type="text" name="raca" placeholder="Raça">
+        <textarea name="descricao" placeholder="Descrição"></textarea>
+        <button type="submit">Cadastrar</button>
+      </form>
+      <p id="formMsg"></p>
+    </section>
+
+    <!-- Explorer -->
+    <section id="explorer" class="page">
+      <h2>Explorador da API</h2>
+      <div class="explorer">
+        <select id="method">
+          <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+        </select>
+        <input id="path" placeholder="/caes">
+        <textarea id="reqBody" placeholder='{"nome":"Rex"}'></textarea>
+        <button onclick="sendRequest()">Enviar</button>
+        <pre id="response"></pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>🐾 Cão Amigo — Sistema de adoção</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
