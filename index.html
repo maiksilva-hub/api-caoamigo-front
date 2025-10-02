@@ -34,8 +34,8 @@
     </style>
     <script>
         // CONFIGURAÇÕES
-        // IMPORTANTE: Substitua esta URL pela URL base da sua API real (ex: http://localhost:8080/api/v1)
-        const API_BASE_URL = "https://caomigo-api.exemplo.com/api/v1"; 
+        // A URL base da API foi atualizada para o link fornecido pelo usuário.
+        const API_BASE_URL = "https://api-caoamigo.onrender.com"; 
 
         // ESTADO GLOBAL
         let state = {
@@ -113,7 +113,7 @@
                     const response = await fetch(url, options);
                     if (!response.ok) {
                         const errorText = await response.text();
-                        // Handle specific HTTP errors here if necessary (e.g., 404, 400)
+                        // Lança um erro com a mensagem de resposta HTTP para melhor depuração
                         throw new Error(`HTTP error! Status: ${response.status}. Message: ${errorText || 'Unknown error'}`);
                     }
                     return response;
@@ -126,35 +126,42 @@
             }
         };
 
-        // API INTERAÇÕES MOCKADAS
-        // (No ambiente real, você faria chamadas para a sua API RESTful)
-
+        // API INTERAÇÕES
         const fetchEntityList = async (entity, query = '') => {
             const endpoint = entitiesMap[entity].endpoint + (query ? `/search?q=${query}` : '');
-            const url = `${API_BASE_URL}${endpoint}`;
-            
-            // Simulação de chamada de API
+            // NOTA: A API está configurada para retornar listas completas no GET /entidade, e filtradas/paginadas no /entidade/search
+            const fullUrl = `${API_BASE_URL}${query ? '/search' : ''}`; // Ajuste para a rota de busca
+            const url = `${API_BASE_URL}${endpoint}${query ? '' : ''}`; // Usando o endpoint completo
+
+            // Se for busca, usa a rota /search e adiciona os parâmetros de paginação
+            let finalUrl = `${API_BASE_URL}${entitiesMap[entity].endpoint}`;
+            if (query) {
+                // Adiciona parâmetros de busca e paginação (usando defaults da spec OpenAPI)
+                finalUrl = `${API_BASE_URL}${entitiesMap[entity].endpoint}/search?q=${encodeURIComponent(query)}&page=0&size=4&sort=id&direction=asc`;
+            }
+
             document.getElementById('loading-indicator').classList.remove('hidden');
             try {
-                const response = await fetchWithRetry(url, { method: 'GET' });
-                // Aqui o response.json() seria os dados reais da API.
-                // Como não temos a API, retornamos dados mockados:
-                let mockData = generateMockData(entity);
+                const response = await fetchWithRetry(finalUrl, { method: 'GET' });
+                const realData = await response.json();
+                
+                state.data = realData;
+                showMessage(`Lista de ${entitiesMap[entity].title} carregada com sucesso da API.`, 'success');
+                return realData;
+            } catch (error) {
+                console.error(`Erro ao buscar ${entity} na API:`, error);
+                // Fallback para dados mockados em caso de falha de conexão/API
+                const mockData = generateMockData(entity);
                 if (query) {
-                    mockData = mockData.filter(item => 
+                     // Filtra mocks se for uma busca
+                    return mockData.filter(item => 
                         Object.values(item).some(val => 
                             String(val).toUpperCase().includes(query.toUpperCase())
                         )
                     );
                 }
                 state.data = mockData;
-                showMessage(`Lista de ${entitiesMap[entity].title} carregada (Dados Mockados).`, 'info');
-                return mockData;
-            } catch (error) {
-                console.error(`Erro ao buscar ${entity}:`, error);
-                // Caso a API falhe, ainda mostramos os mocks.
-                state.data = generateMockData(entity);
-                showMessage(`Erro ao conectar com a API (${url}). Exibindo dados de demonstração.`, 'error');
+                showMessage(`Erro ao conectar com a API (${error.message}). Exibindo dados de demonstração.`, 'error');
                 return state.data;
             } finally {
                 document.getElementById('loading-indicator').classList.add('hidden');
@@ -171,18 +178,17 @@
                 // Remove o ID para POST (a API gera) e se for PUT, ele já está na URL
                 delete data.id; 
                 
-                const response = await fetchWithRetry(url, {
+                await fetchWithRetry(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
-                // response.json() seria o item salvo/atualizado
-                showMessage(`${entitiesMap[entity].title} ${id ? 'atualizado' : 'criado'} com sucesso! (API Mockada)`, 'success');
+                showMessage(`${entitiesMap[entity].title} ${id ? 'atualizado' : 'criado'} com sucesso!`, 'success');
                 return true;
             } catch (error) {
                 console.error(`Erro ao salvar ${entity}:`, error);
-                showMessage(`Erro ao salvar: ${error.message}. (Tente novamente, a URL é ${url})`, 'error');
+                showMessage(`Erro ao salvar: ${error.message}.`, 'error');
                 return false;
             } finally {
                 document.getElementById('loading-indicator').classList.add('hidden');
@@ -193,7 +199,8 @@
             const endpoint = `${entitiesMap[entity].endpoint}/${id}`;
             const url = `${API_BASE_URL}${endpoint}`;
             
-            if (!confirm(`Tem certeza que deseja deletar o ID ${id} de ${entitiesMap[entity].title}?`)) {
+            // Usando modal customizado para não usar `confirm()`
+            if (!await showConfirmationModal(`Tem certeza que deseja deletar o ID ${id} de ${entitiesMap[entity].title}?`)) {
                 return false;
             }
 
@@ -201,11 +208,11 @@
             try {
                 await fetchWithRetry(url, { method: 'DELETE' });
                 
-                showMessage(`${entitiesMap[entity].title} (ID: ${id}) deletado com sucesso. (API Mockada)`, 'success');
+                showMessage(`${entitiesMap[entity].title} (ID: ${id}) deletado com sucesso.`, 'success');
                 return true;
             } catch (error) {
                 console.error(`Erro ao deletar ${entity}:`, error);
-                showMessage(`Erro ao deletar: ${error.message}. (A URL é ${url})`, 'error');
+                showMessage(`Erro ao deletar: ${error.message}.`, 'error');
                 return false;
             } finally {
                 document.getElementById('loading-indicator').classList.add('hidden');
@@ -214,6 +221,35 @@
             }
         };
 
+        // MODAL CUSTOMIZADO (SUBSTITUINDO alert/confirm)
+        const showConfirmationModal = (message) => {
+            return new Promise(resolve => {
+                const modalHtml = `
+                    <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+                        <div class="bg-white p-6 rounded-xl card max-w-sm w-full">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">Confirmação Necessária</h3>
+                            <p class="text-gray-600 mb-6">${message}</p>
+                            <div class="flex justify-end space-x-3">
+                                <button id="modal-cancel" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition">Cancelar</button>
+                                <button id="modal-confirm" class="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Confirmar</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+                const modal = document.getElementById('custom-modal');
+                
+                document.getElementById('modal-cancel').onclick = () => {
+                    modal.remove();
+                    resolve(false);
+                };
+                document.getElementById('modal-confirm').onclick = () => {
+                    modal.remove();
+                    resolve(true);
+                };
+            });
+        };
 
         // FUNÇÕES DE RENDERIZAÇÃO
         const renderHeader = () => {
@@ -291,7 +327,8 @@
                 case 'adocoes':
                     mainField = `Solicitação ${item.id}`;
                     details = `<p class="text-sm text-gray-600">Data: ${formatDate(item.dataSolicitacao)}</p>
-                               <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${item.status === 'APROVADA' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}">${item.status}</span>`;
+                               <p class="text-sm text-gray-600">Cachorro: ${item.cachorro?.nome || 'N/A'}</p>
+                               <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${item.status === 'APROVADA' ? 'bg-green-200 text-green-800' : item.status === 'REJEITADA' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}">${item.status}</span>`;
                     icon = `<div class="p-3 bg-blue-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 13l-3 3m0 0l-3-3m3 3V8m0 12a9 9 0 110-18 9 9 0 010 18z" /></svg></div>`;
                     break;
                 case 'racas':
@@ -307,6 +344,7 @@
                     <div class="flex-grow">
                         <h3 class="text-xl font-semibold text-gray-800">${mainField}</h3>
                         ${details}
+                        <p class="text-xs text-gray-400 mt-1">ID: ${item.id}</p>
                     </div>
                     <div class="flex space-x-2">
                         <button data-id="${item.id}" class="edit-btn p-2 text-white bg-blue-500 hover:bg-blue-600 rounded-full transition duration-150" title="Editar">
@@ -331,7 +369,11 @@
             if (isEditing && state.currentEntity === 'cachorros') {
                 formData = { ...currentItem, ...currentItem.ficha };
             } else if (isEditing) {
-                formData = currentItem;
+                // Para Adocao, preenche o ID do Cachorro para edição
+                if (state.currentEntity === 'adocoes' && currentItem.cachorro) {
+                    formData.cachorroId = currentItem.cachorro.id;
+                }
+                formData = { ...formData, ...currentItem };
             }
 
             container.innerHTML = `
@@ -418,7 +460,9 @@
                 const fichaKeys = ['descricaoHistoria', 'temperamentoPrincipal', 'habilidadesEspeciais'];
                 const ficha = {};
                 fichaKeys.forEach(key => {
+                    // Mapeia o valor para o objeto ficha
                     ficha[key] = data[key] || null;
+                    // Remove do objeto pai
                     delete data[key];
                 });
                 // Garante que a ficha seja enviada como objeto aninhado
@@ -428,10 +472,14 @@
             // Lógica específica para Adoção (simulação de objetos aninhados)
             if (state.currentEntity === 'adocoes') {
                 if (data.cachorroId) {
-                    data.cachorro = { id: parseInt(data.cachorroId) }; // Simula a referência
+                    // A API espera um objeto Cachorro com o id
+                    data.cachorro = { id: parseInt(data.cachorroId) }; 
                     delete data.cachorroId;
+                } else {
+                    // Evita enviar { "cachorro": "" }
+                    delete data.cachorro;
                 }
-                // Racas é um array, mas simplificamos a entrada para o front
+                // Racas é um array vazio por simplificação
                 data.racas = [];
             }
 
