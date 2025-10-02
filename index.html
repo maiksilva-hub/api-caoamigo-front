@@ -1,66 +1,360 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cão Amigo 🐶</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>API Cão Amigo — Documentação</title>
+  <style>
+    :root{--accent:#2b7a78;--muted:#6b6b6b;--bg:#f7f8f9;--card:#fff}
+    body{font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#111}
+    header{background:linear-gradient(90deg,#0b6b6a, #2b7a78); color:#fff; padding:28px 22px}
+    header h1{margin:0;font-size:20px}
+    header p{margin:6px 0 0;opacity:.95}
+    .wrap{max-width:1100px;margin:20px auto;padding:0 18px}
+    .grid{display:grid;grid-template-columns:320px 1fr;gap:18px}
+    nav.card, .panel.card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(16,24,40,0.06)}
+    nav.card{height:calc(100vh - 140px);overflow:auto}
+    .logo{display:flex;gap:10px;align-items:center}
+    .logo .dot{width:44px;height:44px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700}
+    .search{margin:12px 0}
+    input[type=search]{width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ee}
+    .section-title{font-size:13px;color:var(--muted);margin:12px 0 8px}
+    .list a{display:block;padding:8px 10px;border-radius:8px;color:#111;text-decoration:none;margin-bottom:6px}
+    .list a:hover{background:#f1f5f7}
+    .endpoint{border-left:4px solid var(--accent);padding:12px;margin-bottom:12px;border-radius:8px;background:linear-gradient(180deg,rgba(43,122,120,0.03),transparent)}
+    .meta{font-size:13px;color:var(--muted)}
+    pre{background:#0f1724;color:#e6eef8;padding:12px;border-radius:8px;overflow:auto}
+    .kbd{background:#111;color:#fff;padding:3px 8px;border-radius:6px;font-size:12px}
+    .row{display:flex;gap:8px;align-items:center}
+    .tag{background:#eef7f7;color:var(--accent);padding:6px 8px;border-radius:8px;font-size:12px}
+    details{margin-bottom:10px}
+    .btn{background:var(--accent);color:#fff;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .muted{color:var(--muted);font-size:13px}
+    footer{padding:18px;text-align:center;color:var(--muted)}
+    .copy{cursor:pointer;padding:6px;border-radius:6px;border:1px solid #e6e9ee;background:#fff}
+    @media (max-width:900px){.grid{grid-template-columns:1fr;}.nav{height:auto}}
+  </style>
 </head>
 <body>
   <header>
-    <h1>Cão Amigo 🐕</h1>
-    <nav>
-      <button onclick="showPage('home')">🏠 Início</button>
-      <button onclick="showPage('explorer')">⚙️ Explorer</button>
-      <button onclick="showPage('cadastro')">➕ Cadastrar Cão</button>
-    </nav>
+    <div class="wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <h1>API Cão Amigo — Documentação</h1>
+          <p class="muted">Versão: <strong id="api-version">1.0.0</strong> — Visualização interativa do OpenAPI (gerado a partir do JSON fornecido)</p>
+        </div>
+        <div style="text-align:right">
+          <div class="tag">Contato: Laís Carvalho</div>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <!-- Página Inicial -->
-    <section id="home" class="page active">
-      <h2>Cães disponíveis para adoção</h2>
-      <div id="dogList" class="grid"></div>
-    </section>
+  <div class="wrap">
+    <div class="grid">
+      <nav class="card" aria-label="Índice">
+        <div class="logo">
+          <div class="dot">CA</div>
+          <div>
+            <strong>API Cão Amigo</strong>
+            <div class="muted">Sumário rápido</div>
+          </div>
+        </div>
 
-    <!-- Detalhes do Cão -->
-    <section id="detalhes" class="page">
-      <button onclick="showPage('home')">⬅️ Voltar</button>
-      <div id="dogDetails"></div>
-    </section>
+        <div class="search">
+          <input id="global-search" type="search" placeholder="Buscar endpoint, schema ou palavra-chave" />
+        </div>
 
-    <!-- Cadastro de Cão -->
-    <section id="cadastro" class="page">
-      <h2>Cadastrar novo cão</h2>
-      <form id="dogForm">
-        <input type="text" name="nome" placeholder="Nome do cão" required>
-        <input type="number" name="idade" placeholder="Idade" required>
-        <input type="text" name="raca" placeholder="Raça">
-        <textarea name="descricao" placeholder="Descrição"></textarea>
-        <button type="submit">Cadastrar</button>
-      </form>
-      <p id="formMsg"></p>
-    </section>
+        <div class="section-title">Endpoints</div>
+        <div class="list" id="endpoints-list"></div>
 
-    <!-- Explorer -->
-    <section id="explorer" class="page">
-      <h2>Explorador da API</h2>
-      <div class="explorer">
-        <select id="method">
-          <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
-        </select>
-        <input id="path" placeholder="/caes">
-        <textarea id="reqBody" placeholder='{"nome":"Rex"}'></textarea>
-        <button onclick="sendRequest()">Enviar</button>
-        <pre id="response"></pre>
-      </div>
-    </section>
-  </main>
+        <div class="section-title">Schemas</div>
+        <div class="list" id="schemas-list"></div>
 
-  <footer>
-    <p>🐾 Cão Amigo — Sistema de adoção</p>
-  </footer>
+        <div class="section-title">Utilitários</div>
+        <div>
+          <button class="btn" id="download-json">Baixar JSON</button>
+          <button class="btn" id="copy-json" style="background:#145d5c">Copiar JSON</button>
+        </div>
 
-  <script src="app.js"></script>
+        <div style="margin-top:18px" class="muted">Gerado automaticamente — contém exemplos de cURL e detalhes de parâmetros.</div>
+      </nav>
+
+      <main class="panel card" id="main-panel">
+        <h2 id="main-title">Visão geral</h2>
+        <p id="main-desc">Use o índice à esquerda para navegar por endpoints e schemas. Clique em um endpoint para ver detalhes, exemplos e payloads.</p>
+
+        <section id="details"></section>
+
+        <hr />
+        <h3>JSON original</h3>
+        <div style="margin-bottom:8px"><button class="copy" id="copy-json2">Copiar JSON (raw)</button></div>
+        <pre id="raw-json" style="height:240px"></pre>
+      </main>
+    </div>
+
+    <footer>API Cão Amigo — Documentação gerada — Licença: Apache 2.0</footer>
+  </div>
+
+  <script>
+    // --- OpenAPI JSON (embeded) ---
+    const api = {
+  "openapi": "3.0.4",
+  "components": {
+    "schemas": {
+      "Adocao": {
+        "required": ["dataSolicitacao", "justificativa", "status"],
+        "type": "object",
+        "properties": {
+          "id": { "format": "int64", "type": "integer" },
+          "dataSolicitacao": { "$ref": "#/components/schemas/LocalDate" },
+          "justificativa": { "maxLength": 2000, "pattern": "\\S", "type": "string" },
+          "status": { "maxLength": 50, "pattern": "\\S", "type": "string" },
+          "cachorro": { "$ref": "#/components/schemas/Cachorro" },
+          "racas": { "uniqueItems": true, "type": "array", "items": { "$ref": "#/components/schemas/Raca" } }
+        }
+      },
+      "Cachorro": {
+        "required": ["nome", "localDeResgate"],
+        "type": "object",
+        "properties": {
+          "id": { "format": "int64", "type": "integer", "readOnly": true },
+          "nome": { "maxLength": 100, "minLength": 2, "pattern": "\\S", "type": "string" },
+          "dataDeNascimento": { "$ref": "#/components/schemas/LocalDate" },
+          "localDeResgate": { "maxLength": 80, "pattern": "\\S", "type": "string" },
+          "ficha": { "$ref": "#/components/schemas/FichaCachorro" }
+        }
+      },
+      "FichaCachorro": {
+        "type": "object",
+        "properties": {
+          "id": { "format": "int64", "type": "integer", "readOnly": true },
+          "descricaoHistoria": { "maxLength": 2000, "type": "string" },
+          "temperamentoPrincipal": { "maxLength": 200, "type": "string" },
+          "habilidadesEspeciais": { "type": "string" }
+        }
+      },
+      "LocalDate": { "format": "date", "type": "string", "example": "2022-03-10" },
+      "Raca": {
+        "required": ["nome"],
+        "type": "object",
+        "properties": {
+          "id": { "format": "int64", "type": "integer" },
+          "nome": { "maxLength": 50, "minLength": 2, "pattern": "\\S", "type": "string" },
+          "descricao": { "maxLength": 200, "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/adocoes": {
+      "post": { "summary": "Adiciona um registro à lista de adoções (insert)", "description": "Adiciona um item à lista de adoções por meio de POST e request body JSON", "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Adocao" } } }, "required": true }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Adocao" } } } }, "400": { "description": "Bad Request", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Adocao Resource"] },
+      "get": { "summary": "Retorna todas as adoções (getAll)", "description": "Retorna uma lista de adoções por padrão no formato JSON", "responses": { "200": { "description": "Lista retornada com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Adocao" } } } } } }, "tags": ["Adocao Resource"] }
+    },
+    "/adocoes/search": { "get": { "summary": "Retorna as adoções conforme o sistema de pesquisa (search)", "description": "Retorna uma lista de adoções filtrada conforme a pesquisa por padrão no formato JSON", "parameters": [ { "description": "Esquema de filtragem de adoções por ordem crescente ou decrescente", "name": "direction", "in": "query", "schema": { "default": "asc", "type": "string" } }, { "description": "Define qual página será retornada na response", "name": "page", "in": "query", "schema": { "format": "int32", "default": 0, "type": "integer" } }, { "description": "Query de busca por status ou data de solicitação", "name": "q", "in": "query", "schema": { "type": "string" } }, { "description": "Define quantos objetos serão retornados por query", "name": "size", "in": "query", "schema": { "format": "int32", "default": 4, "type": "integer" } }, { "description": "Campo de ordenação da lista de retorno", "name": "sort", "in": "query", "schema": { "default": "id", "type": "string" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Adocao" } } } } } }, "tags": ["Adocao Resource"] } },
+    "/adocoes/{id}": { "put": { "summary": "Altera um registro da lista de adoções (update)", "description": "Edita um item da lista de adoções por meio de Id na URL e request body JSON", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Adocao" } } }, "required": true }, "responses": { "200": { "description": "Item editado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Adocao" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } }, "400": { "description": "Bad Request" } }, "tags": ["Adocao Resource"] }, "get": { "summary": "Retorna uma adoção pela busca por ID (getById)", "description": "Retorna uma adoção específica pela busca de ID colocado na URL no formato JSON por padrão", "parameters": [ { "description": "Id da adoção a ser pesquisada", "required": true, "name": "id", "in": "path", "schema": { "format": "int64", "type": "integer" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Adocao" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Adocao Resource"] }, "delete": { "summary": "Remove um registro da lista de adoções (delete)", "description": "Remove um item da lista de adoções por meio de Id na URL", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "responses": { "204": { "description": "Sem conteúdo", "content": { "text/plain": { "schema": { "type": "string" } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Adocao Resource"] } },
+    "/cachorros": { "post": { "summary": "Adiciona um registro à lista de cachorros (insert)", "description": "Adiciona um item à lista de cachorros por meio de POST e request body JSON", "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cachorro" } } }, "required": true }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cachorro" } } } }, "400": { "description": "Bad Request", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Cachorro Resource"] }, "get": { "summary": "Retorna todos os cachorros (getAll)", "description": "Retorna uma lista de cachorros por padrão no formato JSON", "responses": { "200": { "description": "Lista retornada com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Cachorro" } } } } } }, "tags": ["Cachorro Resource"] } },
+    "/cachorros/search": { "get": { "summary": "Retorna os cachorros conforme o sistema de pesquisa (search)", "description": "Retorna uma lista de cachorros filtrada conforme a pesquisa por padrão no formato JSON", "parameters": [ { "description": "Esquema de filtragem de cachorros por ordem crescente ou decrescente", "name": "direction", "in": "query", "schema": { "default": "asc", "type": "string" } }, { "description": "Define qual página será retornada na response", "name": "page", "in": "query", "schema": { "format": "int32", "default": 0, "type": "integer" } }, { "description": "Query de buscar por nome ou local de resgate", "name": "q", "in": "query", "schema": { "type": "string" } }, { "description": "Define quantos objetos serão retornados por query", "name": "size", "in": "query", "schema": { "format": "int32", "default": 4, "type": "integer" } }, { "description": "Campo de ordenação da lista de retorno", "name": "sort", "in": "query", "schema": { "default": "id", "type": "string" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Cachorro" } } } } } }, "tags": ["Cachorro Resource"] } },
+    "/cachorros/{id}": { "put": { "summary": "Altera um registro da lista de cachorros (update)", "description": "Edita um item da lista de cachorros por meio de Id na URL e request body JSON", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Cachorro" } } }, "required": true }, "responses": { "200": { "description": "Item editado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Cachorro" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } }, "400": { "description": "Bad Request" } }, "tags": ["Cachorro Resource"] }, "get": { "summary": "Retorna um cachorro pela busca por ID (getById)", "description": "Retorna um cachorro específico pela busca de ID colocado na URL no formato JSON por padrão", "parameters": [ { "description": "Id do cachorro a ser pesquisado", "required": true, "name": "id", "in": "path", "schema": { "format": "int64", "type": "integer" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Cachorro" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Cachorro Resource"] }, "delete": { "summary": "Remove um registro da lista de cachorros (delete)", "description": "Remove um item da lista de cachorros por meio de Id na URL", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "responses": { "204": { "description": "Sem conteúdo", "content": { "text/plain": { "schema": { "type": "string" } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } }, "409": { "description": "Conflito - Cachorro possui adoções vinculadas", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Cachorro Resource"] } },
+    "/racas": { "post": { "summary": "Adiciona um registro à lista de raças (insert)", "description": "Adiciona um item à lista de raças por meio de POST e request body JSON", "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Raca" } } }, "required": true }, "responses": { "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Raca" } } } }, "400": { "description": "Bad Request", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Raca Resource"] }, "get": { "summary": "Retorna todas as raças (getAll)", "description": "Retorna uma lista de raças por padrão no formato JSON", "responses": { "200": { "description": "Lista retornada com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Raca" } } } } } }, "tags": ["Raca Resource"] } },
+    "/racas/search": { "get": { "summary": "Retorna as raças conforme o sistema de pesquisa (search)", "description": "Retorna uma lista de raças filtrada conforme a pesquisa por padrão no formato JSON", "parameters": [ { "description": "Esquema de filtragem de raças por ordem crescente ou decrescente", "name": "direction", "in": "query", "schema": { "default": "asc", "type": "string" } }, { "description": "Define qual página será retornada na response", "name": "page", "in": "query", "schema": { "format": "int32", "default": 0, "type": "integer" } }, { "description": "Query de buscar por nome ou descrição", "name": "q", "in": "query", "schema": { "type": "string" } }, { "description": "Define quantos objetos serão retornados por query", "name": "size", "in": "query", "schema": { "format": "int32", "default": 4, "type": "integer" } }, { "description": "Campo de ordenação da lista de retorno", "name": "sort", "in": "query", "schema": { "default": "id", "type": "string" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Raca" } } } } } }, "tags": ["Raca Resource"] } },
+    "/racas/{id}": { "put": { "summary": "Altera um registro da lista de raças (update)", "description": "Edita um item da lista de raças por meio de Id na URL e request body JSON", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Raca" } } }, "required": true }, "responses": { "200": { "description": "Item editado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Raca" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } }, "400": { "description": "Bad Request" } }, "tags": ["Raca Resource"] }, "get": { "summary": "Retorna uma raça pela busca por ID (getById)", "description": "Retorna uma raça específica pela busca de ID colocado na URL no formato JSON por padrão", "parameters": [ { "description": "Id da raça a ser pesquisada", "required": true, "name": "id", "in": "path", "schema": { "format": "int64", "type": "integer" } } ], "responses": { "200": { "description": "Item retornado com sucesso", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Raca" } } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Raca Resource"] }, "delete": { "summary": "Remove um registro da lista de raças (delete)", "description": "Remove um item da lista de raças por meio de Id na URL", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "format": "int64", "type": "integer" } } ], "responses": { "204": { "description": "Sem conteúdo", "content": { "text/plain": { "schema": { "type": "string" } } } }, "404": { "description": "Item não encontrado", "content": { "text/plain": { "schema": { "type": "string" } } } }, "409": { "description": "Conflito - Raça possui adoções vinculadas", "content": { "text/plain": { "schema": { "type": "string" } } } } }, "tags": ["Raca Resource"] } }
+  },
+  "info": {
+    "title": "API Cão Amigo",
+    "version": "1.0.0",
+    "description": "Esta API foi desenvolvida para gerenciar um sistema de adoção de cachorros, permitindo operações completas de CRUD para as seguintes entidades:\n\n - **Cachorro:** A entidade principal que representa um cão para adoção. Relaciona-se com todas as outras entidades. \n - **Abrigo:** Representa o local onde o cachorro está. \n - **Raça:** Categoriza os cachorros. Estabelece um relacionamento Muitos-para-Muitos com a entidade Adoção. \n - **Ficha Cachorro:** Representa os dados detalhados do cachorro, como história e temperamento. Estabelece um relacionamento Um-para-Um com a entidade Cachorro. \n - **Adocao:** Representa o registro de uma solicitação de adoção.",
+    "termsOfService": "No terms",
+    "contact": { "name": "Laís Carvalho de Oliveira", "email": "laiscarvalho858@gmail.com", "url": "http://caomigoapi.com/contact" },
+    "license": { "name": "Apache 2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0.html" }
+  }
+};
+
+    // --- helpers ---
+    const el = (sel) => document.querySelector(sel);
+    const endpointsList = el('#endpoints-list');
+    const schemasList = el('#schemas-list');
+    const details = el('#details');
+    const rawJson = el('#raw-json');
+    const mainTitle = el('#main-title');
+    const apiVersion = el('#api-version');
+
+    apiVersion.textContent = api.info.version || '—';
+
+    function buildIndex(){
+      // endpoints
+      const paths = Object.keys(api.paths||{}).sort();
+      paths.forEach(path =>{
+        const methods = Object.keys(api.paths[path]);
+        methods.forEach(m =>{
+          const item = document.createElement('a');
+          item.href='#';
+          item.dataset.path = path;
+          item.dataset.method = m;
+          item.innerHTML = `<strong>${m.toUpperCase()}</strong> ${path}`;
+          item.addEventListener('click', (ev)=>{ev.preventDefault(); openEndpoint(path,m)});
+          endpointsList.appendChild(item);
+        });
+      });
+
+      // schemas
+      const schemas = Object.keys((api.components&&api.components.schemas)||{}).sort();
+      schemas.forEach(s=>{
+        const item = document.createElement('a');
+        item.href='#';
+        item.textContent = s;
+        item.addEventListener('click', e=>{e.preventDefault(); openSchema(s)});
+        schemasList.appendChild(item);
+      });
+
+      rawJson.textContent = JSON.stringify(api, null, 2);
+    }
+
+    function openEndpoint(path, method){
+      const op = api.paths[path][method];
+      mainTitle.textContent = `${method.toUpperCase()} ${path}`;
+      details.innerHTML = `
+        <div class="endpoint">
+          <div class="row" style="justify-content:space-between"><div>
+            <h3 style="margin:0">${op.summary||''}</h3>
+            <div class="meta">${op.description||''}</div>
+          </div>
+          <div class="tag">${method.toUpperCase()}</div></div>
+
+          <div style="margin-top:10px">
+            <strong>Parâmetros</strong>
+            <div class="muted">${(op.parameters && op.parameters.length) ? op.parameters.length+' parâmetro(s)' : 'Nenhum parâmetro'}</div>
+            ${renderParameters(op.parameters)}
+          </div>
+
+          <div style="margin-top:10px">
+            <strong>Request Body</strong>
+            <div class="muted">${op.requestBody? 'Possui requestBody' : 'Sem requestBody'}</div>
+            ${renderRequestBody(op.requestBody)}
+          </div>
+
+          <div style="margin-top:10px">
+            <strong>Responses</strong>
+            ${renderResponses(op.responses)}
+          </div>
+
+          <div style="margin-top:12px">
+            <strong>Exemplo cURL</strong>
+            <pre>${buildCurlExample(path, method, op)}</pre>
+          </div>
+        </div>
+      `;
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    function renderParameters(params){
+      if(!params || !params.length) return '<div class="muted">—</div>';
+      return '<div style="margin-top:8px">'+params.map(p=>{
+        return `<details><summary><strong>${p.name}</strong> <span class="muted">in:${p.in} ${p.required?'<span style="color:#c0392b">required</span>':''}</span></summary>
+          <div style="padding:8px 10px">${p.description?'<div class="muted">'+p.description+'</div>':''}
+          <div class="muted">schema: ${JSON.stringify(p.schema)}</div></div></details>`
+      }).join('')+'</div>';
+    }
+
+    function renderRequestBody(rb){
+      if(!rb) return '<div class="muted">—</div>';
+      const media = Object.keys(rb.content||{});
+      return '<div style="margin-top:8px">'+media.map(m=>{
+        const schema = rb.content[m].schema;
+        return `<details open><summary>${m}</summary><div style="padding:8px 10px">Schema: <code>${schema.$ref||schema.type||''}</code>
+          <div style="margin-top:8px">${renderSchemaExample(schema)}</div></div></details>`
+      }).join('')+'</div>';
+    }
+
+    function renderResponses(resp){
+      if(!resp) return '<div class="muted">—</div>';
+      return '<div style="margin-top:8px">'+Object.keys(resp).map(code=>{
+        const r = resp[code];
+        const media = r.content ? Object.keys(r.content) : [];
+        return `<details><summary><strong>${code}</strong> ${r.description||''}</summary><div style="padding:8px 10px">${media.map(m=>`<div><em>${m}</em> — schema: <code>${r.content[m].schema.$ref||r.content[m].schema.type||''}</code></div>`).join('')} </div></details>`
+      }).join('')+'</div>';
+    }
+
+    function renderSchemaExample(schema){
+      if(!schema) return '';
+      if(schema.$ref){
+        const name = schema.$ref.split('/').pop();
+        return `<a href="#" onclick="openSchema('${name}');return false">Abrir schema ${name}</a>`;
+      }
+      return '<pre>'+JSON.stringify(schema, null, 2)+'</pre>';
+    }
+
+    function openSchema(name){
+      const s = api.components.schemas[name];
+      mainTitle.textContent = `Schema: ${name}`;
+      details.innerHTML = `<h3>${name}</h3>
+        <div class="muted">${s.type||''} ${s.required?(' — required: '+s.required.join(', ')) : ''}</div>
+        <div style="margin-top:12px">${Object.keys(s.properties||{}).map(p=>{
+          const prop = s.properties[p];
+          return `<div style="padding:8px;border-radius:6px;margin-bottom:6px;background:#fbfdfd"><strong>${p}</strong> <span class="muted">${prop.type||prop.$ref||''}</span>
+            <div class="muted">${prop.description||''}</div>
+            <div class="muted">${prop.readOnly? 'readOnly' : ''} ${prop.format? 'format: '+prop.format : ''}</div>
+          </div>`
+        }).join('')}</div>
+        <div style="margin-top:12px"><strong>Exemplo</strong><pre>${JSON.stringify(buildExampleForSchema(name), null, 2)}</pre></div>`;
+      window.scrollTo({top:0,behavior:'smooth'});
+    }
+
+    function buildExampleForSchema(name, seen=new Set()){
+      if(seen.has(name)) return {};
+      seen.add(name);
+      const s = api.components.schemas[name];
+      if(!s) return {};
+      const obj = {};
+      for(const [k,v] of Object.entries(s.properties||{})){
+        if(v.$ref){
+          const ref = v.$ref.split('/').pop();
+          obj[k] = buildExampleForSchema(ref, seen);
+        }else if(v.type==='string'){
+          if(v.format==='date') obj[k] = '2022-03-10';
+          else obj[k] = v.example || (v.maxLength? v.type + ' example' : 'string example');
+        }else if(v.type==='integer'){
+          obj[k] = 1;
+        }else if(v.type==='array'){
+          if(v.items && v.items.$ref){
+            const ref = v.items.$ref.split('/').pop();
+            obj[k] = [buildExampleForSchema(ref, seen)];
+          }else obj[k] = [];
+        }else obj[k] = null;
+      }
+      return obj;
+    }
+
+    function buildCurlExample(path, method, op){
+      const url = 'https://api.caomigo.example' + path.replace('{id}', '1');
+      let curl = `curl -X ${method.toUpperCase()} "${url}" \\\n  -H "Accept: application/json"`;
+      if(op.requestBody){
+        const ref = Object.values(op.requestBody.content)[0].schema.$ref;
+        const name = ref ? ref.split('/').pop() : null;
+        const body = name ? JSON.stringify(buildExampleForSchema(name)) : '{}';
+        curl += ` \\\n  -H "Content-Type: application/json" \\\n  -d '${body}'`;
+      }
+      return curl;
+    }
+
+    // copy / download
+    document.getElementById('copy-json').addEventListener('click', ()=>{navigator.clipboard.writeText(JSON.stringify(api, null, 2)).then(()=>alert('JSON copiado para a área de transferência'))});
+    document.getElementById('copy-json2').addEventListener('click', ()=>{navigator.clipboard.writeText(JSON.stringify(api, null, 2)).then(()=>alert('JSON copiado para a área de transferência'))});
+    document.getElementById('download-json').addEventListener('click', ()=>{
+      const blob = new Blob([JSON.stringify(api, null, 2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='api-caomigo-openapi.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    });
+
+    // search
+    document.getElementById('global-search').addEventListener('input', (e)=>{
+      const q = e.target.value.toLowerCase();
+      [...endpointsList.children].forEach(a=>{a.style.display = (a.textContent.toLowerCase().includes(q) || q==='') ? '' : 'none'});
+      [...schemasList.children].forEach(a=>{a.style.display = (a.textContent.toLowerCase().includes(q) || q==='') ? '' : 'none'});
+    });
+
+    // initialize
+    buildIndex();
+  </script>
 </body>
 </html>
