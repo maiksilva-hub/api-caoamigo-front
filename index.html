@@ -34,7 +34,6 @@
         .btn-primary:hover {
             background-color: #059669; /* Emerald 600 */
         }
-        /* Efeito de transição suave */
         .fade-in {
             animation: fadeIn 0.3s ease-in-out;
         }
@@ -110,6 +109,8 @@ const entitiesMap = {
     'cachorros': { 
         title: 'Cachorros', 
         endpoint: '/cachorros',
+        // ESTADO: 'mock' força o uso de dados de demonstração (ignora API)
+        status: 'mock', 
         fields: {
             nome: { type: 'text', label: 'Nome', required: true, maxlength: 100, minlength: 2 },
             dataDeNascimento: { type: 'date', label: 'Data de Nascimento', required: false },
@@ -122,6 +123,7 @@ const entitiesMap = {
     'adocoes': { 
         title: 'Adoções', 
         endpoint: '/adocoes',
+        status: 'online', // ESTADO: 'online' tenta usar a API
         fields: {
             dataSolicitacao: { type: 'date', label: 'Data da Solicitação', required: true },
             justificativa: { type: 'textarea', label: 'Justificativa', required: true, maxlength: 2000 },
@@ -132,6 +134,7 @@ const entitiesMap = {
     'racas': { 
         title: 'Raças', 
         endpoint: '/racas',
+        status: 'online', // ESTADO: 'online' tenta usar a API
         fields: {
             nome: { type: 'text', label: 'Nome da Raça', required: true, maxlength: 50, minlength: 2 },
             descricao: { type: 'textarea', label: 'Descrição', required: false, maxlength: 200 },
@@ -140,7 +143,7 @@ const entitiesMap = {
 };
 
 // =========================================================================
-// UTILS E UI (MENSAGENS/LOADING)
+// UTILS E UI 
 // =========================================================================
 
 const showLoading = (show) => {
@@ -174,10 +177,6 @@ const formatDate = (dateString) => {
     }
 };
 
-// =========================================================================
-// MODAL DE CONFIRMAÇÃO
-// =========================================================================
-
 const showConfirmationModal = (message) => {
     return new Promise(resolve => {
         const modal = document.getElementById('confirmation-modal');
@@ -205,11 +204,10 @@ const showConfirmationModal = (message) => {
 };
 
 // =========================================================================
-// MOCK DATA (Fallback em caso de API offline)
+// MOCK DATA 
 // =========================================================================
 
 const generateMockData = (entity) => {
-    // ESTA É A MOCK DATA QUE É USADA QUANDO A API RETORNA 404 OU ERRO
     switch (entity) {
         case 'cachorros':
             return [
@@ -255,6 +253,26 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
 
 const fetchEntityList = async (entity, query = '') => {
     const config = entitiesMap[entity];
+    
+    // --- LÓGICA DE MODO MOCK FORÇADO ---
+    if (config.status === 'mock') {
+        showLoading(true);
+        const mockData = generateMockData(entity);
+        if (query) {
+            state.data = mockData.filter(item => 
+                Object.values(item).some(val => 
+                    String(val).toUpperCase().includes(query.toUpperCase())
+                )
+            );
+        } else {
+            state.data = mockData;
+        }
+        showMessage(`Lista de ${config.title} carregada. (Modo Mock Forçado)`, 'info');
+        showLoading(false);
+        return state.data;
+    }
+    // ------------------------------------
+
     let finalUrl = `${API_BASE_URL}${config.endpoint}`;
     
     if (query) {
@@ -269,7 +287,6 @@ const fetchEntityList = async (entity, query = '') => {
 
         const realData = await response.json();
         
-        // Trata os formatos de resposta
         const dataList = realData.content && Array.isArray(realData.content) ? realData.content : 
                          Array.isArray(realData) ? realData : 
                          (realData.Adocoes || realData.Racas || realData.Cachorros || []); 
@@ -278,7 +295,7 @@ const fetchEntityList = async (entity, query = '') => {
         showMessage(`Lista de ${config.title} carregada.`, 'success');
         return dataList;
     } catch (error) {
-        // --- SOLUÇÃO PARA O ERRO 404 (USAR MOCK DATA) ---
+        // Fallback para Mock (para Adocoes e Racas, caso a API caia)
         console.warn(`API offline ou erro (${entity}). Usando Mock Data.`, error);
         
         const mockData = generateMockData(entity);
@@ -300,6 +317,13 @@ const fetchEntityList = async (entity, query = '') => {
 
 const saveEntity = async (entity, data, id = null) => {
     const config = entitiesMap[entity];
+    
+    // Se a entidade está em modo mock, simule a operação
+    if (config.status === 'mock') {
+        showMessage(`Simulando sucesso: ${config.title} foi ${id ? 'editado' : 'criado'} (Modo Mock).`, 'info');
+        return true; 
+    }
+
     const endpoint = config.endpoint + (id ? `/${id}` : '');
     const url = `${API_BASE_URL}${endpoint}`;
     const method = id ? 'PUT' : 'POST';
@@ -337,6 +361,18 @@ const saveEntity = async (entity, data, id = null) => {
 
 const deleteEntity = async (entity, id) => {
     const config = entitiesMap[entity];
+    
+    // Se a entidade está em modo mock, simule a operação
+    if (config.status === 'mock') {
+        if (!await showConfirmationModal(`Simulando DELETE: Tem certeza que deseja deletar o ID ${id} de ${config.title}?`)) {
+            return false;
+        }
+        showMessage(`Simulação de DELETE de ID ${id} bem-sucedida (Modo Mock).`, 'info');
+        // Para simular a remoção da lista em Mock, você precisaria de lógica extra
+        showPage('list', entity); 
+        return true;
+    }
+
     const url = `${API_BASE_URL}${config.endpoint}/${id}`;
     
     if (!await showConfirmationModal(`Tem certeza que deseja deletar o registro ID ${id} de ${config.title}?`)) {
@@ -366,7 +402,7 @@ const deleteEntity = async (entity, id) => {
 };
 
 // =========================================================================
-// RENDERIZAÇÃO DE UI
+// RENDERIZAÇÃO DE UI (Mantida a mesma)
 // =========================================================================
 
 const renderHeader = () => {
@@ -442,7 +478,7 @@ const renderListPage = () => {
 
     container.innerHTML = `
         <div class="mb-6 flex justify-between items-center">
-            <h2 class="text-3xl font-bold text-gray-900">Lista de ${config.title}</h2>
+            <h2 class="text-3xl font-bold text-gray-900">Lista de ${config.title} ${config.status === 'mock' ? '(MOCK)' : ''}</h2>
             <button id="new-entity-btn" class="btn-primary text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
                 Novo ${config.title.slice(0, -1)}
@@ -461,7 +497,6 @@ const renderListPage = () => {
         </div>
     `;
 
-    // Adiciona Event Listeners
     document.getElementById('new-entity-btn').onclick = () => showPage('form');
     document.getElementById('search-btn').onclick = handleSearch;
     document.getElementById('search-input').addEventListener('keypress', (e) => {
@@ -486,7 +521,6 @@ const renderFormPage = () => {
     const isEditing = state.selectedId !== null;
     const itemToEdit = isEditing ? state.data.find(d => String(d.id) === String(state.selectedId)) : {};
     
-    // Pré-preenche campos aninhados (Ficha Cachorro) para edição
     if (state.currentEntity === 'cachorros' && itemToEdit && itemToEdit.ficha) {
         Object.assign(itemToEdit, itemToEdit.ficha);
     }
@@ -528,7 +562,6 @@ const renderFormPage = () => {
                 </select>
             `;
         } else {
-            // Todos os outros tipos (text, date)
             inputElement = `
                 <input 
                     type="${field.type}" 
@@ -575,7 +608,6 @@ const renderFormPage = () => {
         </div>
     `;
     
-    // Adiciona Event Listeners
     document.getElementById('back-to-list-btn').onclick = () => showPage('list');
     document.getElementById('entity-form').addEventListener('submit', handleFormSubmit);
 };
@@ -600,7 +632,6 @@ const handleFormSubmit = async (e) => {
         data[key] = value;
     }
 
-    // --- Tratamento Especial para o Payload ---
     if (state.currentEntity === 'cachorros') {
         const fichaKeys = ['descricaoHistoria', 'temperamentoPrincipal', 'habilidadesEspeciais'];
         const ficha = {};
@@ -615,7 +646,6 @@ const handleFormSubmit = async (e) => {
         }
         data.racas = data.racas || []; 
     }
-    // ------------------------------------------
 
     const success = await saveEntity(state.currentEntity, data, data.id);
     if (success) {
