@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cão Amigo - Gerenciamento de Adoções</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="./dist/style.css" rel="stylesheet"> 
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        /* Variáveis e CSS customizado (substituem o CDN para cores e fontes) */
         :root {
-            --color-primary: #10B981; /* Emerald */
-            --color-secondary: #FBBF24; /* Amber */
+            --color-primary: #10B981; /* Emerald 500 */
+            --color-secondary: #FBBF24; /* Amber 500 */
             --color-background: #F9FAFB; /* Gray-50 */
         }
         body {
@@ -31,456 +34,19 @@
         .btn-primary:hover {
             background-color: #059669; /* Emerald 600 */
         }
+        /* Efeito de transição suave */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
-    <script>
-        // CONFIGURAÇÕES
-        const API_BASE_URL = "https://apicaoamigo-entrega.onrender.com/api/v1"; 
-
-        // ESTADO GLOBAL
-        let state = {
-            currentEntity: 'cachorros', // 'cachorros', 'adocoes', 'racas'
-            currentPage: 'list', // 'list', 'form'
-            data: [], // Dados da lista
-            selectedId: null, // ID para edição/visualização
-        };
-
-        const entitiesMap = {
-            'cachorros': { 
-                title: 'Cachorros', 
-                endpoint: '/cachorros',
-                fields: {
-                    nome: { type: 'text', label: 'Nome', required: true, maxlength: 100, minlength: 2 },
-                    dataDeNascimento: { type: 'date', label: 'Data de Nascimento', required: false },
-                    localDeResgate: { type: 'text', label: 'Local de Resgate', required: true, maxlength: 80 },
-                    // Campos da FichaCachorro
-                    descricaoHistoria: { type: 'textarea', label: 'História', required: false, maxlength: 2000 },
-                    temperamentoPrincipal: { type: 'text', label: 'Temperamento Principal', required: false, maxlength: 200 },
-                    habilidadesEspeciais: { type: 'text', label: 'Habilidades Especiais', required: false },
-                }
-            },
-            'adocoes': { 
-                title: 'Adoções', 
-                endpoint: '/adocoes',
-                fields: {
-                    dataSolicitacao: { type: 'date', label: 'Data da Solicitação', required: true },
-                    justificativa: { type: 'textarea', label: 'Justificativa', required: true, maxlength: 2000 },
-                    status: { type: 'select', label: 'Status', required: true, options: ['PENDENTE', 'APROVADA', 'REJEITADA'] },
-                    cachorroId: { type: 'text', label: 'ID Cachorro', required: false }, 
-                }
-            },
-            'racas': { 
-                title: 'Raças', 
-                endpoint: '/racas',
-                fields: {
-                    nome: { type: 'text', label: 'Nome da Raça', required: true, maxlength: 50, minlength: 2 },
-                    descricao: { type: 'textarea', label: 'Descrição', required: false, maxlength: 200 },
-                }
-            }
-        };
-
-        // UTILS
-        const showMessage = (message, type = 'success') => {
-            const container = document.getElementById('message-container');
-            const color = type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 
-                          type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 
-                          'bg-blue-100 border-blue-400 text-blue-700';
-            container.innerHTML = `
-                <div class="p-3 mb-4 rounded-lg border ${color}" role="alert">
-                    ${message}
-                </div>
-            `;
-            setTimeout(() => { container.innerHTML = ''; }, 5000);
-        };
-
-        const formatDate = (dateString) => {
-            if (!dateString) return 'N/A';
-            try {
-                // Tenta ajustar o fuso horário ou usa apenas a parte da data
-                const date = new Date(dateString);
-                return date.toLocaleDateString('pt-BR');
-            } catch {
-                return dateString;
-            }
-        };
-
-        const fetchWithRetry = async (url, options = {}, retries = 3) => {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`HTTP error! Status: ${response.status}. ${errorText}`);
-                    }
-                    return response;
-                } catch (error) {
-                    console.error(`Attempt ${i + 1} failed for ${url}:`, error);
-                    if (i === retries - 1) throw error;
-                    const delay = Math.pow(2, i) * 1000;
-                    await new Promise(res => setTimeout(res, delay));
-                }
-            }
-        };
-
-        // API INTERAÇÕES
-        const fetchEntityList = async (entity, query = '') => {
-            let finalUrl = `${API_BASE_URL}${entitiesMap[entity].endpoint}`;
-            
-            // Se houver busca, ajusta a URL
-            if (query) {
-                // Nota: Ajuste o parâmetro 'q' conforme o seu backend espera (ex: 'nome' ou 'term')
-                finalUrl = `${finalUrl}/search?q=${encodeURIComponent(query)}&page=0&size=20`;
-            }
-
-            document.getElementById('loading-indicator').classList.remove('hidden');
-            try {
-                const response = await fetchWithRetry(finalUrl, { method: 'GET' });
-                // Verifica se o conteúdo existe antes de parsear
-                if (response.status === 204) return []; 
-
-                const realData = await response.json();
-                
-                // Tratamento para Spring Boot Pageable (se vier dentro de 'content')
-                if (realData.content && Array.isArray(realData.content)) {
-                    state.data = realData.content;
-                } else if (Array.isArray(realData)) {
-                    state.data = realData;
-                } else {
-                    state.data = [];
-                    console.warn("Formato de dados inesperado:", realData);
-                }
-
-                showMessage(`Lista de ${entitiesMap[entity].title} carregada.`, 'success');
-                return state.data;
-            } catch (error) {
-                console.error(`Erro ao buscar ${entity}:`, error);
-                
-                // Fallback para Mock em caso de erro
-                const mockData = generateMockData(entity);
-                if (query) {
-                    state.data = mockData.filter(item => 
-                        Object.values(item).some(val => 
-                            String(val).toUpperCase().includes(query.toUpperCase())
-                        )
-                    );
-                } else {
-                    state.data = mockData;
-                }
-                showMessage(`Usando dados de demonstração (API offline ou erro: ${error.message})`, 'error');
-                return state.data;
-            } finally {
-                document.getElementById('loading-indicator').classList.add('hidden');
-            }
-        };
-
-        const saveEntity = async (entity, data, id = null) => {
-            const endpoint = entitiesMap[entity].endpoint + (id ? `/${id}` : '');
-            const url = `${API_BASE_URL}${endpoint}`;
-            const method = id ? 'PUT' : 'POST';
-
-            document.getElementById('loading-indicator').classList.remove('hidden');
-            try {
-                // Clona o objeto para não alterar o original do form
-                const payload = {...data};
-                if (!id) delete payload.id; 
-                
-                await fetchWithRetry(url, {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                showMessage(`${entitiesMap[entity].title} ${id ? 'atualizado' : 'criado'} com sucesso!`, 'success');
-                return true;
-            } catch (error) {
-                console.error(`Erro ao salvar ${entity}:`, error);
-                showMessage(`Erro ao salvar: ${error.message}.`, 'error');
-                return false;
-            } finally {
-                document.getElementById('loading-indicator').classList.add('hidden');
-            }
-        };
-
-        const deleteEntity = async (entity, id) => {
-            const url = `${API_BASE_URL}${entitiesMap[entity].endpoint}/${id}`;
-            
-            if (!await showConfirmationModal(`Tem certeza que deseja deletar o ID ${id}?`)) {
-                return false;
-            }
-
-            document.getElementById('loading-indicator').classList.remove('hidden');
-            try {
-                await fetchWithRetry(url, { method: 'DELETE' });
-                showMessage(`Registro deletado com sucesso.`, 'success');
-                return true;
-            } catch (error) {
-                console.error(`Erro ao deletar:`, error);
-                showMessage(`Erro ao deletar: ${error.message}.`, 'error');
-                return false;
-            } finally {
-                document.getElementById('loading-indicator').classList.add('hidden');
-                showPage('list', entity);
-            }
-        };
-
-        // MODAL CUSTOMIZADO
-        const showConfirmationModal = (message) => {
-            return new Promise(resolve => {
-                const modalHtml = `
-                    <div id="custom-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
-                        <div class="bg-white p-6 rounded-xl card max-w-sm w-full mx-4">
-                            <h3 class="text-xl font-bold text-gray-800 mb-4">Confirmação</h3>
-                            <p class="text-gray-600 mb-6">${message}</p>
-                            <div class="flex justify-end space-x-3">
-                                <button id="modal-cancel" class="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition">Cancelar</button>
-                                <button id="modal-confirm" class="px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Confirmar</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.body.insertAdjacentHTML('beforeend', modalHtml);
-                const modal = document.getElementById('custom-modal');
-                
-                document.getElementById('modal-cancel').onclick = () => { modal.remove(); resolve(false); };
-                document.getElementById('modal-confirm').onclick = () => { modal.remove(); resolve(true); };
-            });
-        };
-
-        // RENDERIZAÇÃO
-        const renderHeader = () => {
-            const nav = document.getElementById('main-nav');
-            nav.innerHTML = `
-                ${['cachorros', 'adocoes', 'racas'].map(key => `
-                    <button onclick="showPage('list', '${key}')"
-                        class="px-4 py-4 sm:py-2 transition duration-150 ease-in-out hover:bg-gray-50 rounded-md
-                        ${state.currentEntity === key ? 'tab-active' : 'text-gray-500'}"
-                    >
-                        ${entitiesMap[key].title}
-                    </button>
-                `).join('')}
-            `;
-        };
-
-        const renderListPage = () => {
-            const container = document.getElementById('content-container');
-            const entityConfig = entitiesMap[state.currentEntity];
-            
-            container.innerHTML = `
-                <div class="flex flex-col sm:flex-row justify-between items-center mb-6 p-4 bg-white rounded-xl card">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-4 sm:mb-0">Lista de ${entityConfig.title}</h2>
-                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
-                        <input id="search-input" type="text" placeholder="Buscar..." 
-                               class="p-2 border border-gray-300 rounded-lg w-full sm:w-64 focus:ring-emerald-500 focus:border-emerald-500">
-                        <div class="flex space-x-2">
-                            <button onclick="handleSearch()" class="btn-primary text-white p-2 rounded-lg font-semibold flex-grow sm:flex-grow-0">Buscar</button>
-                            <button onclick="showPage('form')" class="btn-primary text-white p-2 rounded-lg font-semibold flex-grow sm:flex-grow-0 whitespace-nowrap">+ Novo</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="entity-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    ${state.data && state.data.length > 0 ? state.data.map(item => renderListItem(item)).join('') : `
-                        <div class="col-span-full p-10 text-center bg-white rounded-xl card text-gray-500">
-                            Nenhum registro encontrado.
-                        </div>
-                    `}
-                </div>
-            `;
-            
-            document.getElementById('search-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') handleSearch();
-            });
-
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.onclick = (e) => deleteEntity(state.currentEntity, e.currentTarget.dataset.id);
-            });
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.onclick = (e) => {
-                    state.selectedId = e.currentTarget.dataset.id;
-                    showPage('form');
-                };
-            });
-        };
-
-        const renderListItem = (item) => {
-            let details = '';
-            let icon = '';
-            let mainField = item.id;
-
-            switch (state.currentEntity) {
-                case 'cachorros':
-                    mainField = item.nome || `ID ${item.id}`;
-                    details = `<p class="text-sm text-gray-600">Resgate: ${item.localDeResgate || '-'}</p>`;
-                    icon = `<div class="p-3 bg-yellow-200 rounded-full text-yellow-700">🐶</div>`;
-                    break;
-                case 'adocoes':
-                    mainField = `Solicitação ${item.id}`;
-                    details = `<p class="text-sm text-gray-600">Data: ${formatDate(item.dataSolicitacao)}</p>
-                               <p class="text-sm text-gray-600">Cachorro: ${item.cachorro?.nome || 'ID ' + (item.cachorro?.id || '?')}</p>
-                               <span class="text-xs font-bold px-2 py-0.5 rounded ${item.status === 'APROVADA' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}">${item.status}</span>`;
-                    icon = `<div class="p-3 bg-blue-200 rounded-full text-blue-700">📝</div>`;
-                    break;
-                case 'racas':
-                    mainField = item.nome;
-                    details = `<p class="text-sm text-gray-600 truncate">${item.descricao || ''}</p>`;
-                    icon = `<div class="p-3 bg-purple-200 rounded-full text-purple-700">🧬</div>`;
-                    break;
-            }
-
-            return `
-                <div class="bg-white p-5 rounded-xl card hover:shadow-lg transition duration-200 flex items-start space-x-4">
-                    ${icon}
-                    <div class="flex-grow overflow-hidden">
-                        <h3 class="text-xl font-semibold text-gray-800 truncate">${mainField}</h3>
-                        ${details}
-                    </div>
-                    <div class="flex space-x-1">
-                        <button data-id="${item.id}" class="edit-btn p-2 text-white bg-blue-500 hover:bg-blue-600 rounded-lg">✏️</button>
-                        <button data-id="${item.id}" class="delete-btn p-2 text-white bg-red-500 hover:bg-red-600 rounded-lg">🗑️</button>
-                    </div>
-                </div>
-            `;
-        };
-        
-        const renderFormPage = () => {
-            const container = document.getElementById('content-container');
-            const entityConfig = entitiesMap[state.currentEntity];
-            const isEditing = state.selectedId !== null;
-            const currentItem = isEditing ? state.data.find(item => String(item.id) === String(state.selectedId)) : {};
-            
-            // Preparação dos dados para o form
-            let formData = {};
-            if (isEditing) {
-                if (state.currentEntity === 'cachorros') {
-                    formData = { ...currentItem, ...currentItem.ficha };
-                } else if (state.currentEntity === 'adocoes') {
-                    formData = { ...currentItem };
-                    if (currentItem.cachorro) formData.cachorroId = currentItem.cachorro.id;
-                } else {
-                    formData = { ...currentItem };
-                }
-            }
-
-            container.innerHTML = `
-                <div class="bg-white p-6 sm:p-8 rounded-xl card max-w-2xl mx-auto">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
-                        ${isEditing ? 'Editar' : 'Novo'} ${entityConfig.title.slice(0, -1)}
-                    </h2>
-                    <form id="entity-form">
-                        <input type="hidden" name="id" value="${formData.id || ''}">
-                        <div class="grid grid-cols-1 gap-4">
-                            ${Object.entries(entityConfig.fields).map(([key, field]) => {
-                                const value = formData[key] !== undefined && formData[key] !== null ? formData[key] : '';
-                                const baseClass = "w-full p-2 border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500";
-
-                                let inputHtml = '';
-                                if (field.type === 'textarea') {
-                                    inputHtml = `<textarea id="${key}" name="${key}" rows="3" class="${baseClass}" maxlength="${field.maxlength || ''}" ${field.required ? 'required' : ''}>${value}</textarea>`;
-                                } else if (field.type === 'select') {
-                                    inputHtml = `
-                                        <select id="${key}" name="${key}" class="${baseClass}" ${field.required ? 'required' : ''}>
-                                            ${field.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
-                                        </select>`;
-                                } else {
-                                    inputHtml = `<input type="${field.type}" id="${key}" name="${key}" value="${value}" class="${baseClass}" maxlength="${field.maxlength || ''}" ${field.required ? 'required' : ''}>`;
-                                }
-
-                                return `
-                                    <div>
-                                        <label for="${key}" class="block text-sm font-medium text-gray-700 mb-1">${field.label} ${field.required ? '<span class="text-red-500">*</span>' : ''}</label>
-                                        ${inputHtml}
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                        
-                        <div class="mt-8 flex justify-end space-x-3">
-                            <button type="button" onclick="showPage('list')" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Cancelar</button>
-                            <button type="submit" class="btn-primary text-white px-6 py-2 rounded-lg font-semibold">Salvar</button>
-                        </div>
-                    </form>
-                </div>
-            `;
-            document.getElementById('entity-form').addEventListener('submit', handleFormSubmit);
-        };
-
-        const handleSearch = () => {
-            const query = document.getElementById('search-input').value;
-            fetchEntityList(state.currentEntity, query).then(renderListPage);
-        };
-
-        const handleFormSubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = {};
-            
-            for (let [key, value] of formData.entries()) {
-                if (key === 'id' && !value) continue;
-                data[key] = value;
-            }
-
-            // Tratamento Especial: Cachorros (Ficha aninhada)
-            if (state.currentEntity === 'cachorros') {
-                const fichaKeys = ['descricaoHistoria', 'temperamentoPrincipal', 'habilidadesEspeciais'];
-                const ficha = {};
-                fichaKeys.forEach(k => { ficha[k] = data[k] || null; delete data[k]; });
-                data.ficha = ficha; 
-            }
-            
-            // Tratamento Especial: Adoções (Objeto Cachorro)
-            if (state.currentEntity === 'adocoes') {
-                if (data.cachorroId) {
-                    data.cachorro = { id: parseInt(data.cachorroId) }; 
-                    delete data.cachorroId;
-                }
-                data.racas = []; // Simplificação
-            }
-
-            const success = await saveEntity(state.currentEntity, data, data.id);
-            if (success) {
-                state.selectedId = null;
-                showPage('list');
-            }
-        };
-
-        const showPage = async (page, entity = state.currentEntity) => {
-            state.currentPage = page;
-            state.currentEntity = entity;
-            if (page === 'list' || (page === 'form' && !state.selectedId)) state.selectedId = null; 
-            
-            renderHeader();
-            
-            if (page === 'list') {
-                await fetchEntityList(state.currentEntity);
-                renderListPage();
-            } else if (page === 'form') {
-                renderFormPage();
-            }
-            window.scrollTo(0, 0);
-        };
-
-        // MOCK DATA
-        const generateMockData = (entity) => {
-            if (entity === 'cachorros') return [
-                { id: 1, nome: 'Thor', dataDeNascimento: '2023-01-15', localDeResgate: 'Praça', ficha: { descricaoHistoria: 'Resgatado...', temperamentoPrincipal: 'Brincalhão' } },
-                { id: 2, nome: 'Luna', dataDeNascimento: '2022-05-20', localDeResgate: 'Fazenda', ficha: { descricaoHistoria: 'Calma...', temperamentoPrincipal: 'Calma' } }
-            ];
-            if (entity === 'adocoes') return [
-                { id: 101, dataSolicitacao: '2024-09-28', justificativa: 'Amamos cães', status: 'APROVADA', cachorro: { id: 1, nome: 'Thor' } }
-            ];
-            if (entity === 'racas') return [
-                { id: 1, nome: 'Vira-Lata', descricao: 'Mestiço Brasileiro' },
-                { id: 2, nome: 'Poodle', descricao: 'Inteligente' }
-            ];
-            return [];
-        };
-
-        window.onload = () => {
-            showPage('list', 'cachorros'); 
-        };
-    </script>
 </head>
 <body class="bg-gray-50 text-gray-800">
     <div class="min-h-screen flex flex-col">
+        
         <header class="sticky top-0 bg-white shadow-sm z-20">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between h-16 items-center">
@@ -512,5 +78,603 @@
             </div>
         </footer>
     </div>
+
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full">
+            <h3 class="text-lg font-bold mb-4">Confirmação</h3>
+            <p id="modal-message" class="text-gray-600 mb-6"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="modal-cancel-btn" class="px-4 py-2 text-gray-600 bg-gray-200 rounded-md hover:bg-gray-300 transition">Cancelar</button>
+                <button id="modal-confirm-btn" class="px-4 py-2 text-white bg-red-600 rounded-md hover:bg-red-700 transition">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+// =========================================================================
+// CONFIGURAÇÕES INICIAIS E ESTADO
+// =========================================================================
+
+const API_BASE_URL = "https://apicaoamigo-entrega.onrender.com/api/v1"; 
+
+// ESTADO GLOBAL
+let state = {
+    currentEntity: 'cachorros', 
+    currentPage: 'list', 
+    data: [], 
+    selectedId: null, 
+};
+
+// Mapeamento das Entidades e Campos
+const entitiesMap = {
+    'cachorros': { 
+        title: 'Cachorros', 
+        endpoint: '/cachorros',
+        fields: {
+            nome: { type: 'text', label: 'Nome', required: true, maxlength: 100, minlength: 2 },
+            dataDeNascimento: { type: 'date', label: 'Data de Nascimento', required: false },
+            localDeResgate: { type: 'text', label: 'Local de Resgate', required: true, maxlength: 80 },
+            // Ficha Cachorro (campos aninhados no POST/PUT)
+            descricaoHistoria: { type: 'textarea', label: 'História', required: false, maxlength: 2000 },
+            temperamentoPrincipal: { type: 'text', label: 'Temperamento Principal', required: false, maxlength: 200 },
+            habilidadesEspeciais: { type: 'text', label: 'Habilidades Especiais', required: false },
+        }
+    },
+    'adocoes': { 
+        title: 'Adoções', 
+        endpoint: '/adocoes',
+        fields: {
+            dataSolicitacao: { type: 'date', label: 'Data da Solicitação', required: true },
+            justificativa: { type: 'textarea', label: 'Justificativa', required: true, maxlength: 2000 },
+            status: { type: 'select', label: 'Status', required: true, options: ['PENDENTE', 'APROVADA', 'REJEITADA'] },
+            cachorroId: { type: 'text', label: 'ID Cachorro', required: false }, 
+            // O campo 'racas' será preenchido via objeto, não via formulário simples
+        }
+    },
+    'racas': { 
+        title: 'Raças', 
+        endpoint: '/racas',
+        fields: {
+            nome: { type: 'text', label: 'Nome da Raça', required: true, maxlength: 50, minlength: 2 },
+            descricao: { type: 'textarea', label: 'Descrição', required: false, maxlength: 200 },
+        }
+    }
+};
+
+// =========================================================================
+// UTILS E UI (MENSAGENS/LOADING)
+// =========================================================================
+
+const showLoading = (show) => {
+    document.getElementById('loading-indicator').classList.toggle('hidden', !show);
+};
+
+const showMessage = (message, type = 'success') => {
+    const container = document.getElementById('message-container');
+    const color = type === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 
+                  type === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 
+                  'bg-blue-100 border-blue-400 text-blue-700';
+    container.innerHTML = `
+        <div class="p-3 mb-4 rounded-lg border ${color} flex justify-between items-center" role="alert">
+            <span>${message}</span>
+            <button onclick="document.getElementById('message-container').innerHTML = ''" class="ml-4 font-bold leading-none text-2xl">&times;</button>
+        </div>
+    `;
+    // Esconde automaticamente após 5 segundos, a menos que seja um erro
+    if (type !== 'error') {
+        setTimeout(() => { container.innerHTML = ''; }, 5000);
+    }
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+        const date = new Date(dateString);
+        // Ajusta para a data local e formata
+        const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+        return localDate.toLocaleDateString('pt-BR');
+    } catch {
+        return dateString;
+    }
+};
+
+// =========================================================================
+// MODAL DE CONFIRMAÇÃO
+// =========================================================================
+
+const showConfirmationModal = (message) => {
+    return new Promise(resolve => {
+        const modal = document.getElementById('confirmation-modal');
+        document.getElementById('modal-message').textContent = message;
+        modal.classList.remove('hidden');
+
+        const confirmBtn = document.getElementById('modal-confirm-btn');
+        const cancelBtn = document.getElementById('modal-cancel-btn');
+
+        const cleanup = () => {
+            modal.classList.add('hidden');
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+        };
+
+        confirmBtn.onclick = () => {
+            cleanup();
+            resolve(true);
+        };
+        cancelBtn.onclick = () => {
+            cleanup();
+            resolve(false);
+        };
+    });
+};
+
+// =========================================================================
+// MOCK DATA (Fallback em caso de API offline)
+// =========================================================================
+
+const generateMockData = (entity) => {
+    switch (entity) {
+        case 'cachorros':
+            return [
+                { id: 101, nome: 'Rex', dataDeNascimento: '2023-01-15', localDeResgate: 'Praça Central', ficha: { descricaoHistoria: 'Resgatado após enchente.', temperamentoPrincipal: 'Dócil' } },
+                { id: 102, nome: 'Luna', dataDeNascimento: '2022-05-20', localDeResgate: 'Abrigo Municipal', ficha: { descricaoHistoria: 'Cachorra de porte pequeno, muito brincalhona.', temperamentoPrincipal: 'Ativa' } },
+            ];
+        case 'adocoes':
+            return [
+                { id: 201, dataSolicitacao: '2025-10-01', justificativa: 'Temos um grande quintal.', status: 'PENDENTE', cachorro: { id: 101, nome: 'Rex' }, racas: [{ nome: 'SRD' }] },
+                { id: 202, dataSolicitacao: '2025-09-15', justificativa: 'Amamos cães pequenos.', status: 'APROVADA', cachorro: { id: 102, nome: 'Luna' }, racas: [{ nome: 'Poodle' }] },
+            ];
+        case 'racas':
+            return [
+                { id: 301, nome: 'Labrador', descricao: 'Cão de família, muito amigável.' },
+                { id: 302, nome: 'SRD', descricao: 'Sem raça definida.' },
+            ];
+        default:
+            return [];
+    }
+};
+
+// =========================================================================
+// API INTERAÇÕES
+// =========================================================================
+
+const fetchWithRetry = async (url, options = {}, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const errorBody = await response.text(); 
+                // Lança um erro detalhado para o catch
+                throw new Error(`HTTP ${response.status}: ${errorBody.substring(0, 100)}...`);
+            }
+            return response;
+        } catch (error) {
+            console.error(`Tentativa ${i + 1} falhou para ${url}:`, error);
+            if (i === retries - 1) throw error;
+            const delay = Math.pow(2, i) * 1000;
+            await new Promise(res => setTimeout(res, delay)); // Espera exponencial
+        }
+    }
+};
+
+const fetchEntityList = async (entity, query = '') => {
+    const config = entitiesMap[entity];
+    let finalUrl = `${API_BASE_URL}${config.endpoint}`;
+    
+    // Usa o endpoint /search se houver query
+    if (query) {
+        finalUrl = `${finalUrl}/search?q=${encodeURIComponent(query)}&page=0&size=20`; 
+    }
+
+    showLoading(true);
+    try {
+        const response = await fetchWithRetry(finalUrl, { method: 'GET' });
+        
+        if (response.status === 204) return []; 
+
+        const realData = await response.json();
+        
+        // Trata os formatos de resposta: Lista direta ou objeto com 'content' (paginação)
+        const dataList = realData.content && Array.isArray(realData.content) ? realData.content : 
+                         Array.isArray(realData) ? realData : 
+                         (realData.Adocoes || realData.Racas || realData.Cachorros || []); // Suporte ao formato /search
+
+        state.data = dataList;
+        // console.log("Dados da API:", state.data);
+        showMessage(`Lista de ${config.title} carregada.`, 'success');
+        return dataList;
+    } catch (error) {
+        console.warn(`API offline ou erro (${entity}). Usando Mock Data.`, error);
+        
+        // FALLBACK para Mock Data
+        const mockData = generateMockData(entity);
+        if (query) {
+            state.data = mockData.filter(item => 
+                Object.values(item).some(val => 
+                    String(val).toUpperCase().includes(query.toUpperCase())
+                )
+            );
+        } else {
+            state.data = mockData;
+        }
+        showMessage(`🚨 Usando dados de demonstração. API offline ou erro: ${error.message}`, 'error');
+        return state.data;
+    } finally {
+        showLoading(false);
+    }
+};
+
+const saveEntity = async (entity, data, id = null) => {
+    const config = entitiesMap[entity];
+    const endpoint = config.endpoint + (id ? `/${id}` : '');
+    const url = `${API_BASE_URL}${endpoint}`;
+    const method = id ? 'PUT' : 'POST';
+
+    showLoading(true);
+    try {
+        const payload = {...data};
+        if (!id) delete payload.id; 
+        
+        // Cria uma chave de idempotência única
+        const idempotencyKey = `key-${entity}-${id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`; 
+
+        const response = await fetchWithRetry(url, {
+            method: method,
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Idempotency-Key': idempotencyKey 
+            }, 
+            body: JSON.stringify(payload)
+        });
+        
+        // Verifica o status 200 (Replay) ou 201 (Created)
+        if (response.status === 200) {
+             showMessage(`${config.title} (${id || 'novo'}) processado. (Replay Idempotente)`, 'info');
+        } else {
+            showMessage(`${config.title} ${id ? 'atualizado' : 'criado'} com sucesso!`, 'success');
+        }
+        return true;
+    } catch (error) {
+        console.error(`Erro ao salvar ${entity}:`, error);
+        showMessage(`Erro ao salvar: ${error.message}. Verifique o console.`, 'error');
+        return false;
+    } finally {
+        showLoading(false);
+    }
+};
+
+const deleteEntity = async (entity, id) => {
+    const config = entitiesMap[entity];
+    const url = `${API_BASE_URL}${config.endpoint}/${id}`;
+    
+    if (!await showConfirmationModal(`Tem certeza que deseja deletar o registro ID ${id} de ${config.title}?`)) {
+        return false;
+    }
+
+    showLoading(true);
+    try {
+        // Idempotency Key para o DELETE
+        const idempotencyKey = `key-delete-${entity}-${id}-${Date.now()}`; 
+        
+        await fetchWithRetry(url, { 
+            method: 'DELETE',
+            headers: { 
+                'X-Idempotency-Key': idempotencyKey 
+            }, 
+        });
+        showMessage(`Registro deletado com sucesso (ID: ${id}).`, 'success');
+        return true;
+    } catch (error) {
+        console.error(`Erro ao deletar:`, error);
+        showMessage(`Erro ao deletar: ${error.message}. Pode estar em uso (Raças) ou não existir.`, 'error');
+        return false;
+    } finally {
+        showLoading(false);
+        showPage('list', entity); 
+    }
+};
+
+// =========================================================================
+// RENDERIZAÇÃO DE UI
+// =========================================================================
+
+const renderHeader = () => {
+    const nav = document.getElementById('main-nav');
+    nav.innerHTML = ''; 
+
+    Object.keys(entitiesMap).forEach(key => {
+        const config = entitiesMap[key];
+        const isActive = state.currentEntity === key;
+        
+        const button = document.createElement('button');
+        button.className = `px-3 py-2 text-sm uppercase transition ${
+            isActive 
+                ? 'tab-active text-emerald-600' 
+                : 'text-gray-500 hover:text-gray-900'
+        }`;
+        button.textContent = config.title;
+        button.onclick = () => showPage('list', key);
+        nav.appendChild(button);
+    });
+};
+
+const renderListItem = (item) => {
+    const currentEntity = state.currentEntity;
+    const config = entitiesMap[currentEntity];
+    
+    // Mapeamento dos campos principais para exibição
+    let primaryInfo = item.nome || item.dataSolicitacao || item.id;
+    let secondaryInfo = '';
+    
+    if (currentEntity === 'cachorros') {
+        primaryInfo = item.nome || `ID: ${item.id}`;
+        secondaryInfo = `Resgate: ${item.localDeResgate || 'N/A'}`;
+        if (item.dataDeNascimento) {
+            secondaryInfo += ` | Nasc.: ${formatDate(item.dataDeNascimento)}`;
+        }
+    } else if (currentEntity === 'adocoes') {
+        primaryInfo = `Status: ${item.status || 'N/A'}`;
+        secondaryInfo = `Cão: ${item.cachorro?.nome || 'ID:' + item.cachorro?.id || 'N/A'}`;
+        if (item.dataSolicitacao) {
+             secondaryInfo += ` | Data: ${formatDate(item.dataSolicitacao)}`;
+        }
+    } else if (currentEntity === 'racas') {
+        primaryInfo = item.nome || `ID: ${item.id}`;
+        secondaryInfo = item.descricao ? item.descricao.substring(0, 50) + '...' : 'Sem descrição';
+    }
+
+    return `
+        <div class="flex items-center justify-between p-4 bg-white border-b border-gray-100 last:border-b-0">
+            <div class="flex-grow">
+                <p class="text-base font-semibold text-gray-700">${primaryInfo}</p>
+                <p class="text-sm text-gray-500">ID: ${item.id} | ${secondaryInfo}</p>
+            </div>
+            <div class="flex space-x-2">
+                <button data-id="${item.id}" class="edit-btn p-2 rounded-full text-emerald-600 hover:bg-emerald-100 transition" title="Editar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                </button>
+                <button data-id="${item.id}" class="delete-btn p-2 rounded-full text-red-600 hover:bg-red-100 transition" title="Deletar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+            </div>
+        </div>
+    `;
+};
+
+const renderListPage = () => {
+    const container = document.getElementById('content-container');
+    const config = entitiesMap[state.currentEntity];
+    
+    let listHtml = state.data.map(renderListItem).join('');
+    
+    if (state.data.length === 0) {
+        listHtml = `<p class="text-center text-gray-500 py-10">Nenhum registro encontrado para ${config.title}.</p>`;
+    }
+
+    container.innerHTML = `
+        <div class="mb-6 flex justify-between items-center">
+            <h2 class="text-3xl font-bold text-gray-900">Lista de ${config.title}</h2>
+            <button id="new-entity-btn" class="btn-primary text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                Novo ${config.title.slice(0, -1)}
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <div class="flex space-x-2">
+                <input type="text" id="search-input" placeholder="Buscar por palavra-chave..." class="flex-grow p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500">
+                <button id="search-btn" class="btn-primary text-white font-medium py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition">Buscar</button>
+            </div>
+        </div>
+
+        <div class="card bg-white rounded-xl overflow-hidden divide-y divide-gray-100">
+            ${listHtml}
+        </div>
+    `;
+
+    // Adiciona Event Listeners
+    document.getElementById('new-entity-btn').onclick = () => showPage('form');
+    document.getElementById('search-btn').onclick = handleSearch;
+    document.getElementById('search-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSearch();
+    });
+    
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.onclick = (e) => deleteEntity(state.currentEntity, e.currentTarget.dataset.id);
+    });
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.onclick = (e) => {
+            state.selectedId = e.currentTarget.dataset.id;
+            showPage('form');
+        };
+    });
+};
+
+const renderFormPage = () => {
+    const container = document.getElementById('content-container');
+    const config = entitiesMap[state.currentEntity];
+    
+    const isEditing = state.selectedId !== null;
+    const itemToEdit = isEditing ? state.data.find(d => String(d.id) === String(state.selectedId)) : {};
+    
+    // Pré-preenche campos aninhados (Ficha Cachorro) para edição
+    if (state.currentEntity === 'cachorros' && itemToEdit && itemToEdit.ficha) {
+        Object.assign(itemToEdit, itemToEdit.ficha);
+    }
+    
+    let formFieldsHtml = isEditing ? `<input type="hidden" name="id" value="${itemToEdit.id || ''}">` : '';
+
+    Object.keys(config.fields).forEach(key => {
+        const field = config.fields[key];
+        const currentValue = itemToEdit ? itemToEdit[key] : '';
+        const required = field.required ? 'required' : '';
+        const placeholder = field.label;
+
+        let inputElement;
+
+        if (field.type === 'textarea') {
+            inputElement = `
+                <textarea 
+                    name="${key}" 
+                    id="${key}" 
+                    rows="4" 
+                    placeholder="${placeholder}" 
+                    class="p-3 w-full border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500" 
+                    ${required}
+                >${currentValue || ''}</textarea>
+            `;
+        } else if (field.type === 'select' && field.options) {
+            const optionsHtml = field.options.map(option => `
+                <option value="${option}" ${currentValue === option ? 'selected' : ''}>${option}</option>
+            `).join('');
+            inputElement = `
+                <select 
+                    name="${key}" 
+                    id="${key}" 
+                    class="p-3 w-full border border-gray-300 rounded-lg focus:ring-emerald-500 focus:border-emerald-500" 
+                    ${required}
+                >
+                    <option value="">-- Selecione --</option>
+                    ${optionsHtml}
+                </select>
+            `;
+        } else {
+            // Todos os outros tipos (text, date)
+            inputElement = `
+                <input 
+                    type="${field.type}" 
+                    name="${key}" 
+                    id="${key}" 
+                    value="${field.type === 'date' && currentValue ? currentValue.split('T')[0] : currentValue || ''}" 
+                    placeholder="${placeholder}" 
+                    class="p-3 w-full border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" 
+                    ${required}
+                    ${field.maxlength ? `maxlength="${field.maxlength}"` : ''}
+                    ${field.minlength ? `minlength="${field.minlength}"` : ''}
+                />
+            `;
+        }
+
+        formFieldsHtml += `
+            <div class="mb-4">
+                <label for="${key}" class="block text-sm font-medium text-gray-700 mb-1">
+                    ${field.label} ${field.required ? '<span class="text-red-500">*</span>' : ''}
+                </label>
+                ${inputElement}
+            </div>
+        `;
+    });
+
+    container.innerHTML = `
+        <div class="mb-6 flex justify-between items-center">
+            <h2 class="text-3xl font-bold text-gray-900">${isEditing ? 'Editar' : 'Novo'} ${config.title.slice(0, -1)}</h2>
+            <button id="back-to-list-btn" class="text-gray-500 hover:text-gray-700 transition flex items-center gap-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar à Lista
+            </button>
+        </div>
+        
+        <div class="card bg-white rounded-xl p-6 lg:p-8">
+            <form id="entity-form">
+                ${formFieldsHtml}
+                <div class="mt-6 pt-4 border-t">
+                    <button type="submit" class="btn-primary w-full text-white font-bold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition">
+                        ${isEditing ? 'Salvar Alterações' : 'Criar Registro'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    // Adiciona Event Listeners
+    document.getElementById('back-to-list-btn').onclick = () => showPage('list');
+    document.getElementById('entity-form').addEventListener('submit', handleFormSubmit);
+};
+
+
+// =========================================================================
+// HANDLERS E CONTROLE DE NAVEGAÇÃO
+// =========================================================================
+
+const handleSearch = () => {
+    const query = document.getElementById('search-input').value;
+    fetchEntityList(state.currentEntity, query).then(renderListPage); 
+};
+
+const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {};
+    
+    for (let [key, value] of formData.entries()) {
+        if (key === 'id' && !value) continue;
+        data[key] = value;
+    }
+
+    // --- Tratamento Especial para o Payload ---
+
+    // 1. Cachorros (Aninha FichaCachorro)
+    if (state.currentEntity === 'cachorros') {
+        const fichaKeys = ['descricaoHistoria', 'temperamentoPrincipal', 'habilidadesEspeciais'];
+        const ficha = {};
+        fichaKeys.forEach(k => { ficha[k] = data[k] || null; delete data[k]; });
+        data.ficha = ficha; 
+    }
+    
+    // 2. Adoções (Converte ID para Objeto Cachorro e adiciona Lista de Raças)
+    if (state.currentEntity === 'adocoes') {
+        if (data.cachorroId) {
+            // Presume que o backend aceita { id: number } para relacionamento
+            data.cachorro = { id: parseInt(data.cachorroId) }; 
+            delete data.cachorroId;
+        }
+        // O backend de Adocao requer o Set de Raças, mesmo que vazio
+        data.racas = data.racas || []; 
+    }
+    
+    // 3. Raças (Nenhuma mudança complexa necessária)
+
+    const success = await saveEntity(state.currentEntity, data, data.id);
+    if (success) {
+        state.selectedId = null;
+        showPage('list'); 
+    }
+};
+
+/**
+ * Controla a navegação entre as páginas (list/form) e a entidade (cachorros/racas/adocoes).
+ */
+const showPage = async (page, entity = state.currentEntity) => {
+    state.currentPage = page;
+    state.currentEntity = entity;
+    
+    if (page === 'list' || (page === 'form' && !state.selectedId)) state.selectedId = null; 
+    
+    renderHeader();
+    
+    // Adiciona a classe fade-in para transição suave
+    const container = document.getElementById('content-container');
+    container.classList.remove('fade-in');
+    
+    if (page === 'list') {
+        await fetchEntityList(state.currentEntity);
+        container.classList.add('fade-in');
+        renderListPage();
+    } else if (page === 'form') {
+        container.classList.add('fade-in');
+        renderFormPage(); 
+    }
+    window.scrollTo(0, 0); // Rola para o topo ao mudar de página
+};
+
+// =========================================================================
+// INICIALIZAÇÃO
+// =========================================================================
+
+window.onload = () => {
+    // Inicia na lista de Cachorros
+    showPage('list', 'cachorros'); 
+};
+    </script>
 </body>
 </html>
