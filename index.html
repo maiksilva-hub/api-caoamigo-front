@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cão Amigo - Gerenciamento de Adoções</title>
     
-    <link href="./dist/style.css" rel="stylesheet"> 
-
+    <script src="https://cdn.tailwindcss.com"></script> 
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Variáveis e CSS customizado (substituem o CDN para cores e fontes) */
+        /* Variáveis e CSS customizado */
         :root {
             --color-primary: #10B981; /* Emerald 500 */
             --color-secondary: #FBBF24; /* Amber 500 */
@@ -114,7 +114,6 @@ const entitiesMap = {
             nome: { type: 'text', label: 'Nome', required: true, maxlength: 100, minlength: 2 },
             dataDeNascimento: { type: 'date', label: 'Data de Nascimento', required: false },
             localDeResgate: { type: 'text', label: 'Local de Resgate', required: true, maxlength: 80 },
-            // Ficha Cachorro (campos aninhados no POST/PUT)
             descricaoHistoria: { type: 'textarea', label: 'História', required: false, maxlength: 2000 },
             temperamentoPrincipal: { type: 'text', label: 'Temperamento Principal', required: false, maxlength: 200 },
             habilidadesEspeciais: { type: 'text', label: 'Habilidades Especiais', required: false },
@@ -128,7 +127,6 @@ const entitiesMap = {
             justificativa: { type: 'textarea', label: 'Justificativa', required: true, maxlength: 2000 },
             status: { type: 'select', label: 'Status', required: true, options: ['PENDENTE', 'APROVADA', 'REJEITADA'] },
             cachorroId: { type: 'text', label: 'ID Cachorro', required: false }, 
-            // O campo 'racas' será preenchido via objeto, não via formulário simples
         }
     },
     'racas': { 
@@ -160,7 +158,6 @@ const showMessage = (message, type = 'success') => {
             <button onclick="document.getElementById('message-container').innerHTML = ''" class="ml-4 font-bold leading-none text-2xl">&times;</button>
         </div>
     `;
-    // Esconde automaticamente após 5 segundos, a menos que seja um erro
     if (type !== 'error') {
         setTimeout(() => { container.innerHTML = ''; }, 5000);
     }
@@ -170,7 +167,6 @@ const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
         const date = new Date(dateString);
-        // Ajusta para a data local e formata
         const localDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
         return localDate.toLocaleDateString('pt-BR');
     } catch {
@@ -213,6 +209,7 @@ const showConfirmationModal = (message) => {
 // =========================================================================
 
 const generateMockData = (entity) => {
+    // ESTA É A MOCK DATA QUE É USADA QUANDO A API RETORNA 404 OU ERRO
     switch (entity) {
         case 'cachorros':
             return [
@@ -244,7 +241,6 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
             const response = await fetch(url, options);
             if (!response.ok) {
                 const errorBody = await response.text(); 
-                // Lança um erro detalhado para o catch
                 throw new Error(`HTTP ${response.status}: ${errorBody.substring(0, 100)}...`);
             }
             return response;
@@ -252,7 +248,7 @@ const fetchWithRetry = async (url, options = {}, retries = 3) => {
             console.error(`Tentativa ${i + 1} falhou para ${url}:`, error);
             if (i === retries - 1) throw error;
             const delay = Math.pow(2, i) * 1000;
-            await new Promise(res => setTimeout(res, delay)); // Espera exponencial
+            await new Promise(res => setTimeout(res, delay));
         }
     }
 };
@@ -261,7 +257,6 @@ const fetchEntityList = async (entity, query = '') => {
     const config = entitiesMap[entity];
     let finalUrl = `${API_BASE_URL}${config.endpoint}`;
     
-    // Usa o endpoint /search se houver query
     if (query) {
         finalUrl = `${finalUrl}/search?q=${encodeURIComponent(query)}&page=0&size=20`; 
     }
@@ -274,19 +269,18 @@ const fetchEntityList = async (entity, query = '') => {
 
         const realData = await response.json();
         
-        // Trata os formatos de resposta: Lista direta ou objeto com 'content' (paginação)
+        // Trata os formatos de resposta
         const dataList = realData.content && Array.isArray(realData.content) ? realData.content : 
                          Array.isArray(realData) ? realData : 
-                         (realData.Adocoes || realData.Racas || realData.Cachorros || []); // Suporte ao formato /search
+                         (realData.Adocoes || realData.Racas || realData.Cachorros || []); 
 
         state.data = dataList;
-        // console.log("Dados da API:", state.data);
         showMessage(`Lista de ${config.title} carregada.`, 'success');
         return dataList;
     } catch (error) {
+        // --- SOLUÇÃO PARA O ERRO 404 (USAR MOCK DATA) ---
         console.warn(`API offline ou erro (${entity}). Usando Mock Data.`, error);
         
-        // FALLBACK para Mock Data
         const mockData = generateMockData(entity);
         if (query) {
             state.data = mockData.filter(item => 
@@ -315,7 +309,6 @@ const saveEntity = async (entity, data, id = null) => {
         const payload = {...data};
         if (!id) delete payload.id; 
         
-        // Cria uma chave de idempotência única
         const idempotencyKey = `key-${entity}-${id || Date.now()}-${Math.random().toString(36).substring(2, 9)}`; 
 
         const response = await fetchWithRetry(url, {
@@ -327,7 +320,6 @@ const saveEntity = async (entity, data, id = null) => {
             body: JSON.stringify(payload)
         });
         
-        // Verifica o status 200 (Replay) ou 201 (Created)
         if (response.status === 200) {
              showMessage(`${config.title} (${id || 'novo'}) processado. (Replay Idempotente)`, 'info');
         } else {
@@ -353,7 +345,6 @@ const deleteEntity = async (entity, id) => {
 
     showLoading(true);
     try {
-        // Idempotency Key para o DELETE
         const idempotencyKey = `key-delete-${entity}-${id}-${Date.now()}`; 
         
         await fetchWithRetry(url, { 
@@ -400,9 +391,7 @@ const renderHeader = () => {
 
 const renderListItem = (item) => {
     const currentEntity = state.currentEntity;
-    const config = entitiesMap[currentEntity];
     
-    // Mapeamento dos campos principais para exibição
     let primaryInfo = item.nome || item.dataSolicitacao || item.id;
     let secondaryInfo = '';
     
@@ -612,8 +601,6 @@ const handleFormSubmit = async (e) => {
     }
 
     // --- Tratamento Especial para o Payload ---
-
-    // 1. Cachorros (Aninha FichaCachorro)
     if (state.currentEntity === 'cachorros') {
         const fichaKeys = ['descricaoHistoria', 'temperamentoPrincipal', 'habilidadesEspeciais'];
         const ficha = {};
@@ -621,18 +608,14 @@ const handleFormSubmit = async (e) => {
         data.ficha = ficha; 
     }
     
-    // 2. Adoções (Converte ID para Objeto Cachorro e adiciona Lista de Raças)
     if (state.currentEntity === 'adocoes') {
         if (data.cachorroId) {
-            // Presume que o backend aceita { id: number } para relacionamento
             data.cachorro = { id: parseInt(data.cachorroId) }; 
             delete data.cachorroId;
         }
-        // O backend de Adocao requer o Set de Raças, mesmo que vazio
         data.racas = data.racas || []; 
     }
-    
-    // 3. Raças (Nenhuma mudança complexa necessária)
+    // ------------------------------------------
 
     const success = await saveEntity(state.currentEntity, data, data.id);
     if (success) {
@@ -641,9 +624,6 @@ const handleFormSubmit = async (e) => {
     }
 };
 
-/**
- * Controla a navegação entre as páginas (list/form) e a entidade (cachorros/racas/adocoes).
- */
 const showPage = async (page, entity = state.currentEntity) => {
     state.currentPage = page;
     state.currentEntity = entity;
@@ -652,7 +632,6 @@ const showPage = async (page, entity = state.currentEntity) => {
     
     renderHeader();
     
-    // Adiciona a classe fade-in para transição suave
     const container = document.getElementById('content-container');
     container.classList.remove('fade-in');
     
@@ -664,7 +643,7 @@ const showPage = async (page, entity = state.currentEntity) => {
         container.classList.add('fade-in');
         renderFormPage(); 
     }
-    window.scrollTo(0, 0); // Rola para o topo ao mudar de página
+    window.scrollTo(0, 0); 
 };
 
 // =========================================================================
@@ -672,7 +651,6 @@ const showPage = async (page, entity = state.currentEntity) => {
 // =========================================================================
 
 window.onload = () => {
-    // Inicia na lista de Cachorros
     showPage('list', 'cachorros'); 
 };
     </script>
